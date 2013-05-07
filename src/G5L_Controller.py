@@ -22,16 +22,16 @@ class Fivel_Controller(object):
         ######################## GAIT PARAMETERS #########################
         ##################################################################
         if len(arg)<10:
-            self.SwingEff0 = -2.0             # Default swing effort
-            self.SupAnkSetPoint = -0.12       # Setpoint for support ankle
-            self.SupAnkGain_p = 50            # Support ankle gain p
+            self.SwingEff0 = -1.2             # Default swing effort
+            self.SupAnkSetPoint = -0.04       # Setpoint for support ankle
+            self.SupAnkGain_p = 30            # Support ankle gain p
             self.SupAnkGain_d = 10            # Support ankle gain d
-            self.SwingEffDur = 0.45           # Duration of swing effort
-            self.FootExtEff = 1.9             # Foot extension effort
-            self.LegExtEff = 1.2              # Foot extension effort
-            self.FootExtDur = 0.18            # Foot extension duration
-            self.ToeOffEff = 20               # Toe-off effort
-            self.ToeOffDur = 0.25             # Toe-off duration
+            self.SwingEffDur = 0.50           # Duration of swing effort
+            self.FootExtEff = 1.0             # Foot extension effort
+            self.FootExtDur = 0.22            # Foot extension duration
+            self.ToeOffEff = 17.65            # Toe-off effort
+            self.ToeOffDur = 0.24             # Toe-off duration
+            self.DesTorsoAng = -0.055         # Desired torso angle
         else:
             self.SwingEff0 = arg[0]           # Default swing effort
             self.SupAnkSetPoint = arg[1]      # Setpoint for support ankle
@@ -39,10 +39,10 @@ class Fivel_Controller(object):
             self.SupAnkGain_d = arg[3]        # Support ankle gain d
             self.SwingEffDur = arg[4]         # Duration of swing effort
             self.FootExtEff = arg[5]          # Foot extension effort
-            self.LegExtEff = arg[6]           # Foot extension effort
-            self.FootExtDur = arg[7]          # Foot extension duration
-            self.ToeOffEff = arg[8]           # Toe-off effort
-            self.ToeOffDur = arg[9]           # Toe-off duration
+            self.FootExtDur = arg[6]          # Foot extension duration
+            self.ToeOffEff = arg[7]           # Toe-off effort
+            self.ToeOffDur = arg[8]           # Toe-off duration
+            self.DesTorsoAng = arg[9]         # Desired torso angle
         
         self.StepsTaken = 0
         self.ApertureMean = 0
@@ -71,8 +71,9 @@ class Fivel_Controller(object):
 
         # Sequence 2 for raising the right foot (from home position)
         self.seq2_1=copy(self.pos1)
-        self.seq2_1[1] = -0.01
-        self.seq2_1[2] = 0.20
+        self.seq2_1[0] = 0.04
+        self.seq2_1[1] = -0.04
+        self.seq2_1[2] = 0.25
         self.seq2_1[3] = -0.25
 
         self.seq2_2=copy(self.seq2_1)
@@ -116,17 +117,17 @@ class Fivel_Controller(object):
     #         #self.JC.send_pos_traj(self.seq2_2,self.seq2_3,1,0.01)
     #         rospy.sleep(0.2)
 
-    def StandOn(self,leg,time,dt):
+    def StandOn(self,leg,setpoint,time,dt):
         StartTime = rospy.Time.now().to_sec()
         while rospy.Time.now().to_sec() - StartTime < time:
             # Apply closed loop torque for upright torso
-            hip_eff = self.BalanceCmd(leg)
+            hip_eff = self.BalanceCmd(leg,setpoint)
 
             self.JC.set_eff(leg+'_hip',hip_eff)
             self.JC.send_command()
             rospy.sleep(dt)
 
-    def BalanceCmd(self,which):
+    def BalanceCmd(self,which,setpoint):
         ank_pos = self.RS.GetJointPos(which+"_ankle")
         hip_pos = self.RS.GetJointPos(which+"_hip")
         ank_vel = self.RS.GetJointVel(which+"_ankle")
@@ -136,28 +137,36 @@ class Fivel_Controller(object):
         torso_angvel = ank_vel + hip_vel
 
         # Apply closed loop torque for upright torso
-        hip_eff = 120*(0-torso_angle) + 20*(0-torso_angvel)
+        hip_eff = 200*(setpoint-torso_angle) + 50*(0-torso_angvel)
         return hip_eff
 
 
     def TakeStep(self,which):
+        #Aperture = abs(self.RS.GetJointPos('left_hip')-self.RS.GetJointPos('right_hip'))
+        SwingEff = self.SwingEff0 #+ self.kAp * (self.DesAp - Aperture)
+        DesTorsoAng = self.DesTorsoAng
+        # if which == "left":
+        #     DesTorsoAng = self.DesTorsoAng - 0.1*self.RS.GetJointPos('right_hip')
+        # if which == "right":
+        #     DesTorsoAng = self.DesTorsoAng - 0.1*self.RS.GetJointPos('left_hip')
+
         if which == "left":
             # Swing leg 0.4 sec and incline stance leg
-            self.JC.set_eff("left_hip",self.SwingEff0)
+            self.JC.set_eff("left_hip",SwingEff)
             self.JC.send_command()
-            self.StandOn("right",self.SwingEffDur,0.005)
+            self.StandOn("right",DesTorsoAng,self.SwingEffDur,0.005)
             # Straighten ankle and free swing
             self.JC.set_eff("left_ankle",self.FootExtEff)
-            self.JC.set_eff("left_hip",self.LegExtEff)
+            self.JC.set_eff("left_hip",0)
             self.JC.send_command()
-            self.StandOn("right",self.FootExtDur,0.005)
+            self.StandOn("right",DesTorsoAng,self.FootExtDur,0.005)
             # Toe off
             self.JC.set_eff("left_ankle",0)
             self.JC.set_pos("left_ankle",self.SupAnkSetPoint)
             self.JC.set_gains("left_ankle",self.SupAnkGain_p,0,self.SupAnkGain_d)
             self.JC.set_eff("right_ankle",self.ToeOffEff)
             self.JC.send_command()
-            self.StandOn("left",self.ToeOffDur,0.005)
+            self.StandOn("left",DesTorsoAng,self.ToeOffDur,0.005)
             # Bend foot for clearance
             self.JC.set_eff("right_ankle",-2)
             self.JC.set_eff("right_hip",0)
@@ -165,21 +174,21 @@ class Fivel_Controller(object):
 
         if which == "right":
             # Swing leg 0.4 sec and incline stance leg
-            self.JC.set_eff("right_hip",self.SwingEff0)
+            self.JC.set_eff("right_hip",SwingEff)
             self.JC.send_command()
-            self.StandOn("left",self.SwingEffDur,0.005)
+            self.StandOn("left",DesTorsoAng,self.SwingEffDur,0.005)
             # Straighten ankle and free swing
             self.JC.set_eff("right_ankle",self.FootExtEff)
-            self.JC.set_eff("right_hip",self.LegExtEff)
+            self.JC.set_eff("right_hip",0)
             self.JC.send_command()
-            self.StandOn("left",self.FootExtDur,0.005)
+            self.StandOn("left",DesTorsoAng,self.FootExtDur,0.005)
             # Toe off
             self.JC.set_eff("right_ankle",0)
             self.JC.set_pos("right_ankle",self.SupAnkSetPoint)
             self.JC.set_gains("right_ankle",self.SupAnkGain_p,0,self.SupAnkGain_d)
             self.JC.set_eff("left_ankle",self.ToeOffEff)
             self.JC.send_command()
-            self.StandOn("right",self.ToeOffDur,0.005)
+            self.StandOn("right",DesTorsoAng,self.ToeOffDur,0.005)
             # Bend foot for clearance
             self.JC.set_eff("left_ankle",-2)
             self.JC.set_eff("left_hip",0)
@@ -279,8 +288,6 @@ class Fivel_Controller(object):
 
     def reset(self):
         self.reset_srv()
-        self.JC.set_pos("left_hip",-0.03)
-        self.JC.send_command()
         rospy.sleep(1.5)
 
         while self.GlobalPos.z<0.97 or self.GlobalPos.z>1.03 or abs(self.GlobalPos.x)>0.5:
@@ -299,10 +306,12 @@ class Fivel_Controller(object):
         # Start with right leg raised
         self.JC.set_gains('right_hip',2000,0,150)
         self.JC.set_gains('left_hip',2000,0,150)
+        self.JC.set_gains('left_ankle',250,0,20)
         self.JC.send_pos_traj(self.RS.GetJointPos(),self.seq2_2,0.5,0.01) 
-        self.JC.reset_gains()
         rospy.sleep(0.5)
+        self.JC.reset_gains()
         self.reset()
+        rospy.sleep(2)
 
         self.StartTime = rospy.Time.now().to_sec()
 
@@ -316,12 +325,15 @@ class Fivel_Controller(object):
 
             if self.GlobalPos.z<0.6 or self.GlobalPos.z>1.4 or (TimeElapsed>TimeOut and TimeOut>0):
                 # if the robot fell, stop running and return fitness
+                r,p,y = self.RS._orientation.GetRPY()
+                self.GlobalPos.x += 1*math.sin(self.RS.GetJointPos(self.Leg+'_hip')-p)
                 return self.GlobalPos, self.ApertureStd
 
             self.TakeStep(self.Leg)
 
             self.StepsTaken += 1
             ThisAperture = abs(self.RS.GetJointPos('left_hip')-self.RS.GetJointPos('right_hip'))
+            print ThisAperture
             self.ApertureMean += (ThisAperture-self.ApertureMean) / self.StepsTaken
             self.ApertureStd += ((ThisAperture-self.ApertureMean)**2 - self.ApertureStd) / self.StepsTaken
 
