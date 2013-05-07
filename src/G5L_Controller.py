@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import roslib; roslib.load_manifest('5link')
 import math, rospy, os, rosparam
-from robotcon_msgs.msg import * 
+from RobotController.msg import * 
 from sensor_msgs.msg import JointState
 from nav_msgs.msg import Odometry
 from numpy import zeros, array, linspace, arange
@@ -86,7 +86,7 @@ class Fivel_Controller(object):
         self.JointNames = ["left_hip","left_ankle","right_hip","right_ankle"]
 
         # Initialize joint commands handler
-        self.JC = JointCommands_msg_handler([self.RobotName,self.JointNames])
+        self.JC = JointCommands_msg_handler(self.RobotName,self.JointNames)
 
         # Initialize robot state listener
         self.RS = robot_state(self.JointNames)
