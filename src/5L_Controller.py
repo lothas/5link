@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 import roslib; roslib.load_manifest('5link')
 import math, rospy, os, rosparam
-from robotcon_msgs.msg import * 
+from RobotController.msg import * 
 from sensor_msgs.msg import JointState
 from nav_msgs.msg import Odometry
 from numpy import zeros, array, linspace, arange
@@ -96,13 +96,14 @@ class Fivel_Controller(object):
         ##################################################################
         ########################## INITIALIZE ############################
         ##################################################################
-
+        self._robot_name = "five_link_walker"
+        self._jnt_names = ["inner_hip","inner_ankle","left_hip","left_ankle","right_hip","right_ankle"]
         # Initialize joint commands handler
-        self.JC = JointCommands_msg_handler(["five_link_walker",["inner_hip","inner_ankle","left_hip","left_ankle","right_hip","right_ankle"]])
+        self.JC = JointCommands_msg_handler(self._robot_name,self._jnt_names)
 
         # Initialize robot state listener
-        self.RS = robot_state(["inner_hip","inner_ankle","left_hip","left_ankle","right_hip","right_ankle"])
-        self.MsgSub = rospy.Subscriber('/five_link_walker/robot_state',RobotState,self.RS_cb)
+        self.RS = robot_state(self._jnt_names)
+        self.MsgSub = rospy.Subscriber('/'+self._robot_name+'/robot_state',RobotState,self.RS_cb)
         self.OdomSub = rospy.Subscriber('/ground_truth_odom',Odometry,self.Odom_cb)
 
 
@@ -320,16 +321,9 @@ class Fivel_Controller(object):
         rospy.sleep(0.1)
 
         pos = zeros(6)
-        pos[5] = 0
-        self.JC.send_command()
+        pos[0] = 1
+        self.JC.reset_command()
         self.JC.send_pos_traj(zeros(6),pos,0.5,0.01) 
-        #self.JC.set_eff("inner_ankle",0)
-        #self.JC.set_eff("inner_hip",00)
-        #self.JC.set_eff("left_ankle",00)
-        #self.JC.set_eff("left_hip",00)
-        #self.JC.set_eff("right_ankle",0)
-        #self.JC.set_eff("right_hip",0)
-        #self.JC.send_command()
 
         #self.JC.send_pos_traj(self.RS.GetJointPos(),self.pos1,0.5,0.01)
 

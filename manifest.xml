@@ -8,9 +8,7 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/</url>
-  <depend package="robotcon_msgs"/>
-  <depend package="tf"/>
-
+  <depend package="RobotController"/>
 </package>
 
 

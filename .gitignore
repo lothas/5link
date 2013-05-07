@@ -1,4 +1,5 @@
 build/
+populations/*
 bin/
 msg_gen/
 srv_gen/
