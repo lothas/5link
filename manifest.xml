@@ -1,0 +1,14 @@
+<package>
+  <description brief="5link">
+
+     5link
+
+  </description>
+  <author>Darpa Tech 3</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/</url>
+  <depend package="RobotController"/>
+</package>
+
+
